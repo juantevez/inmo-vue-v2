@@ -1,11 +1,27 @@
 <template>
   <div ref="container" class="fp3d">
-    <canvas ref="canvas" class="fp3d-canvas" />
-    <div class="fp3d-hud-top">
-      <span>PLANO 3D &nbsp;·&nbsp; VISTA ISO</span>
-      <span>{{ phaseLabel }}</span>
+    <!-- 3D scene (hidden when WebGL unavailable) -->
+    <template v-if="!noWebGL">
+      <canvas ref="canvas" class="fp3d-canvas" />
+      <div class="fp3d-hud-top">
+        <span>PLANO 3D &nbsp;·&nbsp; VISTA ISO</span>
+        <span>{{ phaseLabel }}</span>
+      </div>
+      <div class="fp3d-hud-bot">{{ phaseLabel }}</div>
+    </template>
+
+    <!-- Fallback when WebGL is disabled/sandboxed -->
+    <div v-else class="fp3d-fallback">
+      <div class="fp3d-fallback-grid" />
+      <div class="fp3d-fallback-content">
+        <svg width="48" height="48" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <rect width="32" height="32" rx="4" fill="rgba(201,169,110,0.12)"/>
+          <path d="M8 22 L16 10 L24 22" stroke="#C9A96E" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M12 22 L12 17 L20 17 L20 22" stroke="#C9A96E" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Encontrá tu próximo hogar</span>
+      </div>
     </div>
-    <div class="fp3d-hud-bot">{{ phaseLabel }}</div>
   </div>
 </template>
 
@@ -16,6 +32,7 @@ import * as THREE from 'three'
 const container  = ref(null)
 const canvas     = ref(null)
 const phaseLabel = ref('INICIANDO…')
+const noWebGL    = ref(false)
 
 let renderer, scene, camera, clock
 let items        = []   // { mesh, startT, dur, phase }
@@ -316,18 +333,32 @@ function tick() {
   renderer.render(scene, camera)
 }
 
+function webGLAvailable() {
+  try {
+    const c = document.createElement('canvas')
+    return !!(window.WebGLRenderingContext &&
+      (c.getContext('webgl') || c.getContext('experimental-webgl')))
+  } catch (_) { return false }
+}
+
 /* ─── lifecycle ──────────────────────────── */
 onMounted(() => {
-  init()
-  build()
-  cycleStart = 0
-  renderer.setAnimationLoop(tick)
+  if (!webGLAvailable()) { noWebGL.value = true; return }
+  try {
+    init()
+    build()
+    cycleStart = 0
+    renderer.setAnimationLoop(tick)
+  } catch (_) {
+    noWebGL.value = true
+  }
 })
 
 onUnmounted(() => {
-  renderer.setAnimationLoop(null)
   resizeObs?.disconnect()
-  scene.traverse(obj => {
+  if (!renderer) return
+  renderer.setAnimationLoop(null)
+  scene?.traverse(obj => {
     if (!obj.isMesh) return
     obj.geometry?.dispose()
     const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
@@ -375,5 +406,36 @@ onUnmounted(() => {
 .fp3d-hud-bot {
   bottom: 4px;
   justify-content: flex-end;
+}
+
+/* ── Fallback when WebGL unavailable ── */
+.fp3d-fallback {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  background: #1A1814;
+}
+.fp3d-fallback-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(201,169,110,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(201,169,110,0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+.fp3d-fallback-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: rgba(201,169,110,0.45);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 </style>

@@ -1,5 +1,9 @@
 <template>
-  <article class="prop-card" @click="$emit('open', prop)">
+  <article class="prop-card"
+    @click="$emit('open', prop)"
+    @mouseenter="$emit('hover-enter')"
+    @mouseleave="$emit('hover-leave')"
+  >
     <div class="prop-img-carousel">
       <div class="prop-carousel-track">
         <template v-if="images.length">
@@ -67,7 +71,7 @@
 import { ref, computed, onMounted } from 'vue'
 
 const props = defineProps({ prop: { type: Object, required: true } })
-defineEmits(['open'])
+defineEmits(['open', 'hover-enter', 'hover-leave'])
 
 const API = 'http://127.0.0.1:8000'
 const images    = ref([])

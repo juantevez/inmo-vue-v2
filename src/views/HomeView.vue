@@ -112,12 +112,15 @@
           </div>
 
           <!-- Grid -->
-          <div v-else class="properties-grid">
+          <div v-else class="properties-grid" :class="gridAnim">
             <PropertyCard
-              v-for="p in properties"
+              v-for="(p, idx) in properties"
               :key="p.id"
               :prop="p"
+              :style="{ '--i': Math.min(idx, 8) }"
               @open="openDetail"
+              @hover-enter="mapRef?.highlightMarker(p.id)"
+              @hover-leave="mapRef?.clearHighlight()"
             />
           </div>
 
@@ -170,7 +173,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import PropertyCard from '@/components/PropertyCard.vue'
 import PropertyMap from '@/components/PropertyMap.vue'
@@ -192,6 +195,7 @@ const tabs = [
 const filters = reactive({ op: '', zone: '', type: '', minPrice: '', maxPrice: '', pets: false })
 
 const loading      = ref(false)
+const gridAnim     = ref('')
 const properties   = ref([])
 const total        = ref(0)
 const currentPage  = ref(0)
@@ -235,8 +239,6 @@ function search() {
 }
 
 async function loadProperties() {
-  loading.value = true
-
   const params = new URLSearchParams({ limit: PAGE_SIZE, offset: currentPage.value * PAGE_SIZE })
   if (filters.op)       params.set('operation', filters.op)
   if (filters.type)     params.set('property_type', filters.type)
@@ -250,17 +252,34 @@ async function loadProperties() {
     params.set('radius_km', geoRadius.value)
   }
 
+  // Exit animation for existing cards before showing skeleton
+  if (properties.value.length > 0) {
+    gridAnim.value = 'grid-exit'
+    await new Promise(r => setTimeout(r, 210))
+    gridAnim.value = ''
+  }
+
+  loading.value = true
+
   try {
     const res  = await fetch(`${API}/api/v1/properties?${params}`)
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
     properties.value = Array.isArray(data) ? data : (data.properties || data.items || data.data || [])
     total.value      = data.total ?? data.Total ?? properties.value.length
+    // Set enter class before grid mounts so cards animate in from the start
+    gridAnim.value = 'grid-enter'
   } catch (_) {
     properties.value = []
     total.value      = 0
+    gridAnim.value   = ''
   } finally {
     loading.value = false
+  }
+
+  // Remove enter class after stagger completes (8 cards × 48ms + 360ms anim = ~744ms)
+  if (gridAnim.value === 'grid-enter') {
+    setTimeout(() => { gridAnim.value = '' }, 750)
   }
 }
 
@@ -357,6 +376,16 @@ onMounted(() => {
         }
       } catch (_) {}
     }, 800)
+  }
+})
+
+// Sync filter when NavBar RouterLinks change ?op= param without remounting
+watch(() => route.query.op, (newOp) => {
+  const op = newOp ?? ''
+  if (filters.op !== op) {
+    filters.op = op
+    currentPage.value = 0
+    loadProperties()
   }
 })
 

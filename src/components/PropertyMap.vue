@@ -26,10 +26,11 @@ const emit = defineEmits(['open', 'close'])
 const API   = 'http://127.0.0.1:8000'
 const mapEl = ref(null)
 
-let map         = null
-let markers     = []
+let map          = null
+let markers      = []
 let radiusCircle = null
-let userMarker  = null
+let userMarker   = null
+let hoverPin     = null
 
 onMounted(() => {
   map = L.map(mapEl.value, {
@@ -49,6 +50,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (hoverPin && map) map.removeLayer(hoverPin)
   if (map) { map.remove(); map = null }
 })
 
@@ -193,5 +195,28 @@ function openMarkerPopup(propId) {
   }
 }
 
-defineExpose({ openMarkerPopup })
+const PIN_SVG = `<div class="hover-pin"><svg width="30" height="40" viewBox="0 0 30 40" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15 0C6.72 0 0 6.72 0 15C0 26.25 15 40 15 40C15 40 30 26.25 30 15C30 6.72 23.28 0 15 0Z" fill="#E53E3E"/><circle cx="15" cy="15" r="6.5" fill="white" opacity="0.88"/></svg></div>`
+
+function highlightMarker(propId) {
+  markers.forEach(m => {
+    const isTarget = m.propId === propId
+    setMarkerActive(m.marker, isTarget)
+    if (isTarget) {
+      map.panTo([m.lat, m.lng], { animate: true, duration: 0.25 })
+      if (hoverPin) map.removeLayer(hoverPin)
+      hoverPin = L.marker([m.lat, m.lng], {
+        icon: L.divIcon({ className: '', html: PIN_SVG, iconSize: [30, 40], iconAnchor: [15, 40] }),
+        interactive: false,
+        zIndexOffset: 900,
+      }).addTo(map)
+    }
+  })
+}
+
+function clearHighlight() {
+  markers.forEach(m => setMarkerActive(m.marker, false))
+  if (hoverPin) { map.removeLayer(hoverPin); hoverPin = null }
+}
+
+defineExpose({ openMarkerPopup, highlightMarker, clearHighlight })
 </script>

@@ -300,7 +300,12 @@ async function handleContact() {
     const res = await fetch(`${API}/api/v1/chats`, {
       method: 'POST',
       headers: auth.authHeaders(),
-      body: JSON.stringify({ property_id: props.prop.id, advertiser_id: props.prop.owner_id }),
+      body: JSON.stringify({
+        property_id:    props.prop.id,
+        property_title: props.prop.title || '',
+        advertiser_id:  props.prop.owner_id,
+        seeker_name:    auth.firstName || '',
+      }),
     })
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}))
